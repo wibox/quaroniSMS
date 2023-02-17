@@ -8,13 +8,27 @@ import traceback
 
 import tensorflow as tf
 import tensorflow_io as tfio
+import numpy as np
 
 LABELS = ["low", "medium", "high"]
 
+
 def get_audio_and_label(filename):
-    audio_binary = siw.read(filename)
-    sampling_rate, audio = audio_binary[0], audio_binary[1]
-    label = int(filename.split("_")[-1].split(".")[0])
+    # print(type(filename))
+    # filename = filename.numpy()
+    # print(filename.numpy())
+    # print(type(filename))
+    # audio_binary = siw.read(filename)
+    # sampling_rate, audio = audio_binary[0], audio_binary[1]
+    # label = int(filename.split("_")[-1].split(".")[0])
+    audio_binary = tf.io.read_file(filename)
+    audio, sampling_rate = tf.audio.decode_wav(audio_binary)
+    path_parts = tf.strings.split(filename, '/')
+    path_end = path_parts[-1]
+    file_parts = tf.strings.split(path_end, '_')
+    label_parts = tf.strings.split(file_parts[-1], ".")
+    label = label_parts[0]
+
 
     # zero_padding = tf.zeros(sampling_rate - tf.shape(audio), dtype=tf.float32)
     # audio_padded = tf.concat([audio, zero_padding], axis=0)
@@ -61,6 +75,7 @@ def get_log_mel_spectrogram(filename, downsampling_rate, frame_length_in_s, fram
     mel_spectrogram = tf.matmul(spectrogram, linear_to_mel_weight_matrix)
 
     log_mel_spectrogram = tf.math.log(mel_spectrogram + 1.e-6)
+    label = tf.strings.to_number(label, tf.int32)
 
     if label <= 40:
         label = "low"
@@ -72,9 +87,9 @@ def get_log_mel_spectrogram(filename, downsampling_rate, frame_length_in_s, fram
     return log_mel_spectrogram, label
 
 
-def preprocess_with_resized_mel(filename, SHAPE):
-    signal, label = get_log_mel_spectrogram(filename)
-    signal.set_shape(SHAPE)
+def preprocess_with_resized_mel(filename):#, SHAPE):
+    signal, label = get_log_mel_spectrogram(filename, downsampling_rate=48000, frame_length_in_s=0.04, frame_step_in_s=0.02, num_mel_bins=20, lower_frequency=40, upper_frequency=2000)
+    # signal.set_shape(SHAPE)
     mfccs = tf.signal.mfccs_from_log_mel_spectrograms(signal)[..., :]
     mfccs = tf.expand_dims(mfccs, -1)
     mfccs = tf.image.resize(mfccs, [32, 32])
