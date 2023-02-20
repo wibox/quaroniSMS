@@ -14,7 +14,8 @@ LABELS = ["low", "medium", "high"]
 
 
 def tf_read(filename):
-    return tf.numpy_function(siw.read, [filename], [tf.int64, tf.float32])
+    audio = tf.numpy_function(siw.read, [filename], [tf.int64, tf.float32])
+    return audio
 
 def get_audio_and_label(filename):
     # print(type(filename))
@@ -67,7 +68,8 @@ def get_spectrogram(filename, downsampling_rate, frame_length_in_s, frame_step_i
         fft_length=frame_length
     )
     spectrogram = tf.abs(stft)
-    print(tf.shape(spectrogram))
+    print("QUA ", tf.shape(spectrogram), spectrogram.shape)
+    print("QUA ", spectrogram)
 
     return spectrogram, downsampling_rate, label
 
@@ -121,7 +123,7 @@ class DatasetFormatter():
         self.audio_files : List[str] = list()
 
     def _initialize(self):
-        self.audio_files = glob("data/*/*/*.wav")
+        self.audio_files = glob("data/*/*.wav")
 
     def _extract_time_info(self, info_file_path : str):
         time_info = None
@@ -135,9 +137,9 @@ class DatasetFormatter():
             return time_info
 
     def _crop_audio(self, audio_path : str):
-        car_label = audio_path.split('/')[2]
+        car_label = audio_path.split('/')[1]
         filename = audio_path.split('/')[-1]
-        if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[2]}"):
+        if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[1]}"):
             os.makedirs(f"formatted_data/formatted_{car_label}")
         input_audiofile = siw.read(audio_path)
         sampling_rate, audio = input_audiofile[0], input_audiofile[1]
