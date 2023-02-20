@@ -13,22 +13,35 @@ import numpy as np
 LABELS = ["low", "medium", "high"]
 
 
+def tf_read(filename):
+    return tf.numpy_function(siw.read, [filename], [tf.int64, tf.float32])
+
 def get_audio_and_label(filename):
     # print(type(filename))
-    # filename = filename.numpy()
-    # print(filename.numpy())
+    # filename = tf.compat.as_str_any(filename)
+    # print(filename)
+    # # print(filename.numpy().decode())
     # print(type(filename))
     # audio_binary = siw.read(filename)
     # sampling_rate, audio = audio_binary[0], audio_binary[1]
     # label = int(filename.split("_")[-1].split(".")[0])
-    audio_binary = tf.io.read_file(filename)
-    audio, sampling_rate = tf.audio.decode_wav(audio_binary)
+
+    # audio_binary = tf.io.read_file(filename)
+    # audio, sampling_rate = tf.audio.decode_wav(audio_binary)
+
+    sampling_rate, audio = tf_read(filename)
+    sampling_rate = tf.cast(sampling_rate, tf.int32)
+
+    # Double-check normalization ranges, which depends on audio resolution (tf.int16, tf.int32, or tf.float32)
+    # audio = tf.cast(audio, dtype=tf.float32)
+    
+    audio = (audio + 32768) / (32767 + 32768)
+
     path_parts = tf.strings.split(filename, '/')
     path_end = path_parts[-1]
     file_parts = tf.strings.split(path_end, '_')
     label_parts = tf.strings.split(file_parts[-1], ".")
     label = label_parts[0]
-
 
     # zero_padding = tf.zeros(sampling_rate - tf.shape(audio), dtype=tf.float32)
     # audio_padded = tf.concat([audio, zero_padding], axis=0)
@@ -54,6 +67,7 @@ def get_spectrogram(filename, downsampling_rate, frame_length_in_s, frame_step_i
         fft_length=frame_length
     )
     spectrogram = tf.abs(stft)
+    print(tf.shape(spectrogram))
 
     return spectrogram, downsampling_rate, label
 
@@ -88,10 +102,10 @@ def get_log_mel_spectrogram(filename, downsampling_rate, frame_length_in_s, fram
 
 
 def preprocess_with_resized_mel(filename):#, SHAPE):
-    signal, label = get_log_mel_spectrogram(filename, downsampling_rate=48000, frame_length_in_s=0.04, frame_step_in_s=0.02, num_mel_bins=20, lower_frequency=40, upper_frequency=2000)
-    # signal.set_shape(SHAPE)
+    signal, label = get_log_mel_spectrogram(filename, downsampling_rate=48000, frame_length_in_s=0.04, frame_step_in_s=0.02, num_mel_bins=40, lower_frequency=20, upper_frequency=4000)
+    signal.set_shape((1, 192000, 2))
     mfccs = tf.signal.mfccs_from_log_mel_spectrograms(signal)[..., :]
-    mfccs = tf.expand_dims(mfccs, -1)
+    # mfccs = tf.expand_dims(mfccs, -1)
     mfccs = tf.image.resize(mfccs, [32, 32])
     label_id = tf.argmax(label == LABELS)
 
