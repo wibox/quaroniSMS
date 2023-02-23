@@ -31,10 +31,7 @@ def get_data(filename):
 
     return sampling_rate, audio, label
 
-def get_spectrogram(filename):
-
-    frame_length_in_s = 0.04
-    frame_step_in_s = 0.02
+def get_spectrogram(filename, frame_step_in_s, frame_length_in_s):
 
     sampling_rate, audio, label = get_data(filename)
 
@@ -52,13 +49,13 @@ def get_spectrogram(filename):
 
     return spectrogram, sampling_rate_float32, label
 
-def get_log_mel_spectrogram(filename):
-    frame_length_in_s = 0.04
-    num_mel_bins = 40
-    lower_frequency = 20
-    upper_frequency = 4000
+def get_log_mel_spectrogram(filename, frame_length_in_s, frame_step_in_s, num_mel_bins, lower_frequency, upper_frequency):
+    # frame_length_in_s = 0.04
+    # num_mel_bins = 40
+    # lower_frequency = 20
+    # upper_frequency = 4000
 
-    spectrogram, sampling_rate_float32, label = get_spectrogram(filename)
+    spectrogram, sampling_rate_float32, label = get_spectrogram(filename, frame_step_in_s=frame_step_in_s, frame_length_in_s=frame_length_in_s)
 
     frame_length = int(frame_length_in_s * sampling_rate_float32)
     num_spectrogram_bins = frame_length // 2 + 1

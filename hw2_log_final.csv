@@ -1,0 +1,1 @@
+frame_length_in_s,frame_step_in_s,num_mel_bins,lower_frequency,upper_frequency,batch_size,epochs,initial_learning_rate,end_learning_rate,num_mfccs_features,alpha,accuracy,avg_preprocessing_latency,avg_model_latency,median_total_latency,model_size,compressed_model_size
