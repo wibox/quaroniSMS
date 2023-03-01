@@ -120,5 +120,9 @@ class DatasetFormatter():
     def format_dataset(self):
         self._initialize()
         for audio_path in tqdm(self.audio_files):
-            self._crop_audio(audio_path = audio_path)
+            try:
+                self._crop_audio(audio_path = audio_path)
+            except:
+                print(f"Problems reading audio: {audio_path}, skipping it.")
+                pass
     
