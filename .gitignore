@@ -3,3 +3,6 @@
 *.txt
 *.Identifier
 *.docx
+saved_models/
+tflite_models/
+__pycache__/
