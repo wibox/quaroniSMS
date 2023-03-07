@@ -162,7 +162,7 @@ def redis_connection(args) -> Tuple[bool, redis.Redis]:
     return result, redis_client
 
 def load_task_details(model_name : str):
-    interpreter = tf.lite.Interpreter(model_path=f"{model_name}.tflite")
+    interpreter = tf.lite.Interpreter(model_path=f"tflite_model/{model_name}.tflite")
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
@@ -172,7 +172,8 @@ def load_task_details(model_name : str):
 def load_parameters_from_csv(filepath : str) -> bool:
     try:
         df = pd.read_csv(filepath)
-        downsampling_rate = int(df["downsampling_rate"])
+        # downsampling_rate = int(df["downsampling_rate"])
+        downsampling_rate = 48000
         frame_length_in_s = float(df["frame_length_in_s"])
         frame_step_in_s = float(df["frame_step_in_s"])
         num_mel_bins = int(df["num_mel_bins"])
@@ -199,15 +200,14 @@ def main() -> None:
     parser.add_argument("--port", type = int, default = 15072)
     parser.add_argument("--user", type = str, default = "default")
     parser.add_argument("--password", type = str, default = "53R8YAlL81zAHIEVcPjwjzcnVQoSPhzt")
-    parser.add_argument("--device", type = int, default = 12)
-    parser.add_argument("--model-name", type=str, default="model_7")
-    parser.add_argument("--csv-path", type=str, default="spectrogram_results.csv")
+    parser.add_argument("--device", type = int, default = 1)
+    parser.add_argument("--model-name", type=str, default="1678110341")
+    parser.add_argument("--csv-path", type=str, default="hw2_log_final.csv")
     args = parser.parse_args()
     
     _, redis_client = redis_connection(args=args)
     
-    safe_ts_create(redis_client, "mac_adress:battery")
-    safe_ts_create(redis_client, "mac_adress:power")
+    safe_ts_create(redis_client, "mac_adress:speed")
 
     interpreter, input_details, output_details = load_task_details(model_name=args.model_name)
     downsamplig_rate, frame_length_in_s, frame_step_in_s, num_mel_bins, lower_frequency, upper_frequency, num_mfccs_features= load_parameters_from_csv(filepath=args.csv_path)
@@ -257,3 +257,6 @@ def main() -> None:
             elif ipt.lower() == "p":
                 print("Processing audio files stopped.")
                 break
+
+if __name__ == '__main__':
+    main()
