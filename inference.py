@@ -219,34 +219,34 @@ def main() -> None:
     if not os.path.exists("recordings/"):
         os.makedirs("recordings")
 
-    with sd.InputStream(device=args.device, channels=1, samplerate=16000, dtype="float32", callback=callback, blocksize=16000):
+    with sd.InputStream(device=args.device, channels=1, samplerate=16000, dtype="float32", callback=callback, blocksize=48000):
         print("Recording audio...")
         while True:
-            ipt = input()
-            if ipt.lower() == "q":
-                print("Processing audio files...")
-                for audiofile in glob("recordings/*.wav"):
-                    predicted_label = speed_classification(
-                        filename=audiofile,
-                        downsampling_rate=downsamplig_rate,
-                        frame_length_in_s=frame_length_in_s,
-                        frame_step_in_s=frame_step_in_s,
-                        num_mfccs_features = num_mfccs_features,
-                        linear_to_mel_weight_matrix=linear_to_mel_weight_matrix,
-                        interpreter=interpreter,
-                        input_details=input_details,
-                        output_details=output_details,
-                        labels=["low", "medium", "high"]
-                    )
-                    print(predicted_label)
+            #ipt = input()
+            #if ipt.lower() == "q":
+            print("Processing audio files...")
+            for audiofile in glob("recordings/*.wav"):
+                predicted_label = speed_classification(
+                    filename=audiofile,
+                    downsampling_rate=downsamplig_rate,
+                    frame_length_in_s=frame_length_in_s,
+                    frame_step_in_s=frame_step_in_s,
+                    num_mfccs_features = num_mfccs_features,
+                    linear_to_mel_weight_matrix=linear_to_mel_weight_matrix,
+                    interpreter=interpreter,
+                    input_details=input_details,
+                    output_details=output_details,
+                    labels=["low", "medium", "high"]
+                )
+                print(predicted_label)
 
-                    if info_monitoring:
-                        ts_in_ms, speed_label = update_informations(predicted_label)
-                        redis_client.ts().add("mac_adress:speed", ts_in_ms, speed_label)
-                time.sleep(1)
-            elif ipt.lower() == "p":
-                print("Processing audio files stopped.")
-                break
+                if info_monitoring:
+                    ts_in_ms, speed_label = update_informations(predicted_label)
+                    redis_client.ts().add("mac_adress:speed", ts_in_ms, speed_label)
+            time.sleep(1)
+            # if input().lower() == "p":
+            #     print("Processing audio files stopped.")
+            #     break
 
 if __name__ == '__main__':
     main()
