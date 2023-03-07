@@ -107,7 +107,7 @@ def callback(indata, frames, callback_time, status):
 def resample_audio_array(audio_padded : Any, downsampling_rate : int) -> Any:
     return tfio.audio.resample(audio_padded, tf.cast(downsampling_rate, tf.int64), downsampling_rate)
 
-def go_stop_classification(
+def speed_classification(
     filename : str,
     downsampling_rate : int,
     frame_length_in_s : float,
@@ -226,7 +226,7 @@ def main() -> None:
             if ipt.lower() == "q":
                 print("Processing audio files...")
                 for audiofile in glob("recordings/*.wav"):
-                    predicted_label = go_stop_classification(
+                    predicted_label = speed_classification(
                         filename=audiofile,
                         downsampling_rate=downsamplig_rate,
                         frame_length_in_s=frame_length_in_s,
@@ -236,19 +236,9 @@ def main() -> None:
                         interpreter=interpreter,
                         input_details=input_details,
                         output_details=output_details,
-                        labels=["go", "stop"]
+                        labels=["low", "medium", "high"]
                     )
                     print(predicted_label)
-
-                    # if predicted_label == "go":
-                    #     info_monitoring = True
-                    #     print("Starting battery monitoring system.")
-                    # elif predicted_label == "stop":
-                    #     info_monitoring = False
-                    #     print("Stopping battery monitoring system.")
-                    # elif predicted_label is None:
-                    #     # print("Could not resolve classification task.")
-                    #     continue
 
                     if info_monitoring:
                         ts_in_ms, speed_label = update_informations(predicted_label)
