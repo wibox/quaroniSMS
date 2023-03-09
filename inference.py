@@ -10,6 +10,9 @@ import pandas as pd
 import scipy.io.wavfile as siw
 import sounddevice as sd
 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+
 from typing import *
 from datetime import datetime
 from glob import glob
@@ -162,7 +165,7 @@ def redis_connection(args) -> Tuple[bool, redis.Redis]:
     return result, redis_client
 
 def load_task_details(model_name : str):
-    interpreter = tf.lite.Interpreter(model_path=f"tflite_model/{model_name}.tflite")
+    interpreter = tf.lite.Interpreter(model_path=f"tflite_models/{model_name}.tflite")
     interpreter.allocate_tensors()
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
@@ -172,7 +175,7 @@ def load_task_details(model_name : str):
 def load_parameters_from_csv(filepath : str) -> bool:
     try:
         df = pd.read_csv(filepath)
-        # downsampling_rate = int(df["downsampling_rate"])
+        #downsampling_rate = int(df["downsampling_rate"])
         downsampling_rate = 48000
         frame_length_in_s = float(df["frame_length_in_s"])
         frame_step_in_s = float(df["frame_step_in_s"])
@@ -185,14 +188,18 @@ def load_parameters_from_csv(filepath : str) -> bool:
     finally:
         return downsampling_rate, frame_length_in_s, frame_step_in_s, num_mel_bins, lower_frequency, upper_frequency, num_mfccs_features
 
+def get_mac_id_information():
+    return hex(uuid.getnode())
+
 def update_informations(predicted_label : str) -> Tuple[float, float, bool]:
     ts_in_s = time.time()
     ts_in_ms = int(ts_in_s*1000)
-    mac_id = hex(uuid.getnode())
+    #mac_id = hex(uuid.getnode())
+    mac_id = get_mac_id_information()
     formatted_datetime = datetime.fromtimestamp(ts_in_s)
     print(f"{formatted_datetime} - {mac_id}: speed_label ", predicted_label)
 
-    return ts_in_ms, predicted_label
+    return mac_id, ts_in_ms, predicted_label
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -200,14 +207,15 @@ def main() -> None:
     parser.add_argument("--port", type = int, default = 15072)
     parser.add_argument("--user", type = str, default = "default")
     parser.add_argument("--password", type = str, default = "53R8YAlL81zAHIEVcPjwjzcnVQoSPhzt")
-    parser.add_argument("--device", type = int, default = 1)
+    parser.add_argument("--device", type = int, default = 6)
     parser.add_argument("--model-name", type=str, default="1678110341")
     parser.add_argument("--csv-path", type=str, default="hw2_log_final.csv")
     args = parser.parse_args()
     
     _, redis_client = redis_connection(args=args)
     
-    safe_ts_create(redis_client, "mac_adress:speed")
+    mac_address = get_mac_id_information()
+    safe_ts_create(redis_client, f"{mac_address}:speed")
 
     interpreter, input_details, output_details = load_task_details(model_name=args.model_name)
     downsamplig_rate, frame_length_in_s, frame_step_in_s, num_mel_bins, lower_frequency, upper_frequency, num_mfccs_features= load_parameters_from_csv(filepath=args.csv_path)
@@ -219,7 +227,7 @@ def main() -> None:
     if not os.path.exists("recordings/"):
         os.makedirs("recordings")
 
-    with sd.InputStream(device=args.device, channels=1, samplerate=16000, dtype="float32", callback=callback, blocksize=48000):
+    with sd.InputStream(device=args.device, channels=1, samplerate=48000, dtype="float32", callback=callback, blocksize=48000):
         print("Recording audio...")
         while True:
             #ipt = input()
@@ -240,13 +248,23 @@ def main() -> None:
                 )
                 print(predicted_label)
 
+                # if predicted_label == "go":
+                #     info_monitoring = True
+                #     print("Starting battery monitoring system.")
+                # elif predicted_label == "stop":
+                #     info_monitoring = False
+                #     print("Stopping battery monitoring system.")
+                # elif predicted_label is None:
+                #     # print("Could not resolve classification task.")
+                #     continue
+
                 if info_monitoring:
                     ts_in_ms, speed_label = update_informations(predicted_label)
-                    redis_client.ts().add("mac_adress:speed", ts_in_ms, speed_label)
+                    redis_client.ts().add(f"{mac_address}:speed", ts_in_ms, speed_label)
             time.sleep(1)
             # if input().lower() == "p":
             #     print("Processing audio files stopped.")
             #     break
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
