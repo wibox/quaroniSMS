@@ -154,7 +154,7 @@ class DatasetFormatter():
         n_windows = 1 + (len(audio) - wl) // overlap
         stride_size = audio.strides[0] * overlap
 
-        windows = as_strided(audio, shape=(n_windows, wl), strides=(stride_size, audio.strides[0]))
+        windows = as_strided(audio, shape=(n_windows, wl, audio.shape[-1]), strides=(stride_size, audio.strides[0], audio.strides[1]))
 
         formatted_audio = np.concatenate(windows, axis=0)
 
@@ -183,10 +183,10 @@ class DatasetFormatter():
         n_windows = 1 + (len(formatted_audio) - wl) // overlap
         stride_size = formatted_audio.strides[0] * overlap
 
-        windows = as_strided(formatted_audio, shape=(n_windows, wl), strides=(stride_size, formatted_audio.strides[0]))
+        windows = as_strided(audio, shape=(n_windows, wl, audio.shape[-1]), strides=(stride_size, audio.strides[0], audio.strides[1]))
 
         fAudio = np.concatenate(windows, axis=0)
-            
+
         siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=fAudio)
 
     def format_dataset(self, strategy : str):
