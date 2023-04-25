@@ -1,12 +1,18 @@
 import scipy.io.wavfile as siw
+
 import os
 from glob import glob
 from tqdm import tqdm
 
 from typing import *
-import traceback
+from traceback import *
 
 import tensorflow as tf
+
+import numpy as np
+from numpy.lib.stride_tricks import as_strided
+
+import traceback
 
 LABELS = ["low", "medium", "high"]
 
@@ -86,14 +92,20 @@ def get_log_mel_spectrogram(filename, frame_length_in_s, frame_step_in_s, num_me
 class DatasetFormatter():
     def __init__(
         self,
-        crop_time : int
+        crop_time : int = 1, 
+        window_length : int = 3,
+        overlap_size : int = 2
     ):
 
         self.crop_time = crop_time
+        self.window_length = window_length
+        self.overlap_size = overlap_size
         self.audio_files : List[str] = list()
 
     def _initialize(self):
+        print("Loading audio files informations...")
         self.audio_files = glob("data/*/*.wav")
+        print(f"Found {len(self.audio_files)} audio files.")
 
     def _extract_time_info(self, info_file_path : str):
         time_info = None
@@ -107,22 +119,92 @@ class DatasetFormatter():
             return time_info
 
     def _crop_audio(self, audio_path : str):
+
         car_label = audio_path.split('/')[1]
         filename = audio_path.split('/')[-1]
+
         if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[1]}"):
             os.makedirs(f"formatted_data/formatted_{car_label}")
+
         input_audiofile = siw.read(audio_path)
         sampling_rate, audio = input_audiofile[0], input_audiofile[1]
         file_time_info = int(self._extract_time_info(info_file_path = f"{audio_path.split('.')[0]}.txt"))
-        formatted_audio = audio[file_time_info*sampling_rate-sampling_rate*self.crop_time:file_time_info*sampling_rate+sampling_rate*self.crop_time, :]
+
+        if self.crop_time != -1:
+            formatted_audio = audio[file_time_info*sampling_rate-sampling_rate*self.crop_time:file_time_info*sampling_rate+sampling_rate*self.crop_time, :]
+        else:
+            formatted_audio = audio
+
         siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=formatted_audio)
 
-    def format_dataset(self):
+    def _window_audio(self, audio_path : str):
+
+        car_label = audio_path.split('/')[1]
+        filename = audio_path.split('/')[-1]
+
+        if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[1]}"):
+            os.makedirs(f"formatted_data/formatted_{car_label}")
+
+        input_audiofile = siw.read(audio_path)
+        sampling_rate, audio = input_audiofile[0], input_audiofile[1]
+
+        wl = self.window_length*sampling_rate
+        overlap = self.overlap_size*sampling_rate
+
+        n_windows = 1 + (len(audio) - wl) // overlap
+        stride_size = audio.strides[0] * overlap
+
+        windows = as_strided(audio, shape=(n_windows, wl), strides=(stride_size, audio.strides[0]))
+
+        formatted_audio = np.concatenate(windows, axis=0)
+
+        siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=formatted_audio)
+    
+    def _crop_and_window_audio(self, audio_path : str):
+
+        car_label = audio_path.split('/')[1]
+        filename = audio_path.split('/')[-1]
+
+        if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[1]}"):
+            os.makedirs(f"formatted_data/formatted_{car_label}")
+
+        input_audiofile = siw.read(audio_path)
+        sampling_rate, audio = input_audiofile[0], input_audiofile[1]
+        file_time_info = int(self._extract_time_info(info_file_path = f"{audio_path.split('.')[0]}.txt"))
+
+        if self.crop_time != -1:
+            formatted_audio = audio[file_time_info*sampling_rate-sampling_rate*self.crop_time:file_time_info*sampling_rate+sampling_rate*self.crop_time, :]
+        else:
+            formatted_audio = audio
+
+        wl = self.window_length*sampling_rate
+        overlap = self.overlap_size*sampling_rate
+
+        n_windows = 1 + (len(formatted_audio) - wl) // overlap
+        stride_size = formatted_audio.strides[0] * overlap
+
+        windows = as_strided(formatted_audio, shape=(n_windows, wl), strides=(stride_size, formatted_audio.strides[0]))
+
+        fAudio = np.concatenate(windows, axis=0)
+            
+        siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=fAudio)
+
+    def format_dataset(self, strategy : str):
         self._initialize()
+        if self.crop_time != -1:
+            print(f"Cropping audio files to {self.crop_time} seconds before and after passing time. Saving to ./formatted_data/")
+        else:
+            print("Maintaining original audio files. Saving to ./formatted_data/")
         for audio_path in tqdm(self.audio_files):
             try:
-                self._crop_audio(audio_path = audio_path)
-            except:
-                print(f"Problems reading audio: {audio_path}, skipping it.")
-                pass
-    
+                if strategy == "crop":
+                    self._crop_audio(audio_path = audio_path)
+                elif strategy == "window":
+                    self._window_audio(audio_path = audio_path)
+                elif strategy == "CropAndWindow":
+                    self._crop_and_window_audio(audio_path = audio_path)
+                else:
+                    print("Please select one among 'crop', 'window' and 'CropAndWindow' ")
+            except Exception as e:
+                # print(f"Problems reading audio: {audio_path}, skipping it.")
+                print(e.format_exc())

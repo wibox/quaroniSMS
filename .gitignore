@@ -5,4 +5,10 @@
 *.docx
 saved_models/
 tflite_models/
+.venv
+data/
+complete_test_data/
+complete_training_data/
+complete_validation_data/
+formatted_data/
 __pycache__/
