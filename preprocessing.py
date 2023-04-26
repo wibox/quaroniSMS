@@ -10,7 +10,6 @@ from traceback import *
 import tensorflow as tf
 
 import numpy as np
-from numpy.lib.stride_tricks import as_strided
 
 import traceback
 
@@ -94,13 +93,36 @@ class DatasetFormatter():
         self,
         crop_time : int = 1, 
         window_length : int = 3,
-        overlap_size : int = 2
+        overlap_size : int = 2,
+        standard_audio_limit : int = 480000
     ):
 
         self.crop_time = crop_time
         self.window_length = window_length
         self.overlap_size = overlap_size
+        self.standard_audio_limit = standard_audio_limit
         self.audio_files : List[str] = list()
+
+    def _create_audio_views(self, audio_data, window_size, overlap):
+        # Calculate the number of samples per step
+        step = window_size - overlap
+        
+        # Calculate the number of views
+        num_views = int(np.ceil((len(audio_data) - overlap) / step))
+
+        # Create an empty array to store the views
+        audio_views = list()
+
+        # Create views with a sliding window using numpy indexing
+        for i in range(num_views):
+            start = i * step
+            end = start + window_size
+            audio_views.append(audio_data[start:end])
+
+        # Concatenate the views back into a bigger array
+        audio_data_new = np.concatenate(audio_views, axis=0)
+
+        return audio_data_new
 
     def _initialize(self):
         print("Loading audio files informations...")
@@ -129,6 +151,9 @@ class DatasetFormatter():
         input_audiofile = siw.read(audio_path)
         sampling_rate, audio = input_audiofile[0], input_audiofile[1]
         file_time_info = int(self._extract_time_info(info_file_path = f"{audio_path.split('.')[0]}.txt"))
+        
+        # fixing the audio length to standard size with just one channel
+        audio = audio[:self.standard_audio_limit, :1]
 
         if self.crop_time != -1:
             formatted_audio = audio[file_time_info*sampling_rate-sampling_rate*self.crop_time:file_time_info*sampling_rate+sampling_rate*self.crop_time, :]
@@ -151,12 +176,7 @@ class DatasetFormatter():
         wl = self.window_length*sampling_rate
         overlap = self.overlap_size*sampling_rate
 
-        n_windows = 1 + (len(audio) - wl) // overlap
-        stride_size = audio.strides[0] * overlap
-
-        windows = as_strided(audio, shape=(n_windows, wl, audio.shape[-1]), strides=(stride_size, audio.strides[0], audio.strides[1]))
-
-        formatted_audio = np.concatenate(windows, axis=0)
+        formatted_audio = self._create_audio_views(audio_data=audio[:self.standard_audio_limit, :1], window_size=wl, overlap=overlap)
 
         siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=formatted_audio)
     
@@ -172,6 +192,8 @@ class DatasetFormatter():
         sampling_rate, audio = input_audiofile[0], input_audiofile[1]
         file_time_info = int(self._extract_time_info(info_file_path = f"{audio_path.split('.')[0]}.txt"))
 
+        audio = audio[:self.standard_audio_limit, :1]
+
         if self.crop_time != -1:
             formatted_audio = audio[file_time_info*sampling_rate-sampling_rate*self.crop_time:file_time_info*sampling_rate+sampling_rate*self.crop_time, :]
         else:
@@ -179,15 +201,10 @@ class DatasetFormatter():
 
         wl = self.window_length*sampling_rate
         overlap = self.overlap_size*sampling_rate
-
-        n_windows = 1 + (len(formatted_audio) - wl) // overlap
-        stride_size = formatted_audio.strides[0] * overlap
-
-        windows = as_strided(audio, shape=(n_windows, wl, audio.shape[-1]), strides=(stride_size, audio.strides[0], audio.strides[1]))
-
-        fAudio = np.concatenate(windows, axis=0)
-
-        siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=fAudio)
+        
+        formatted_audio = self._create_audio_views(audio_data=audio[:, :], window_size=wl, overlap=overlap)
+        
+        siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=formatted_audio)
 
     def format_dataset(self, strategy : str):
         self._initialize()
@@ -206,5 +223,5 @@ class DatasetFormatter():
                 else:
                     print("Please select one among 'crop', 'window' and 'CropAndWindow' ")
             except Exception as e:
-                # print(f"Problems reading audio: {audio_path}, skipping it.")
-                print(e.format_exc())
+                print(f"Problems reading audio: {audio_path}, skipping it.")
+                print(traceback.format_exc())

@@ -3,6 +3,7 @@
 *.txt
 *.Identifier
 *.docx
+*.csv
 saved_models/
 tflite_models/
 .venv
