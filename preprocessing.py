@@ -24,7 +24,6 @@ def get_data(filename):
     sampling_rate = tf.cast(sampling_rate, tf.int32)
     audio = tf.cast(audio, dtype=tf.float32)
     audio = (audio + 32768) / (32767 + 32768)
-    audio = audio[:, :1]
 
     path_parts = tf.strings.split(filename, '/')
     path_end = path_parts[-1]
@@ -103,6 +102,38 @@ class DatasetFormatter():
         self.standard_audio_limit = standard_audio_limit
         self.audio_files : List[str] = list()
 
+    def _initialize(self):
+        print("Loading audio files informations...")
+        self.audio_files = glob("data/*/*.wav")
+        print(f"Found {len(self.audio_files)} audio files.")
+
+    def _retrieve_audio_informations(self, audio_path : str):
+        car_label = audio_path.split('/')[1]
+        filename = audio_path.split('/')[-1]
+
+        if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[1]}"):
+            os.makedirs(f"formatted_data/formatted_{car_label}")
+
+        input_audiofile = siw.read(audio_path)
+        sampling_rate, audio = input_audiofile[0], input_audiofile[1]
+        file_time_info = int(self._extract_time_info(info_file_path = f"{audio_path.split('.')[0]}.txt"))
+        
+        # fixing the audio length to standard size with just one channel
+        audio = audio[:self.standard_audio_limit, :1]
+
+        return car_label, filename, sampling_rate, audio, file_time_info
+
+    def _extract_time_info(self, info_file_path : str):
+        time_info = None
+        try:
+            with open(info_file_path, "r") as info_if:
+                info_data = info_if.readlines()
+                time_info = float(info_data[0].split(" ")[-1])
+        except Exception as e:
+            print(traceback.format_exc())
+        finally:
+            return time_info
+
     def _create_audio_views(self, audio_data, window_size, overlap):
         # Calculate the number of samples per step
         step = window_size - overlap
@@ -124,36 +155,9 @@ class DatasetFormatter():
 
         return audio_data_new
 
-    def _initialize(self):
-        print("Loading audio files informations...")
-        self.audio_files = glob("data/*/*.wav")
-        print(f"Found {len(self.audio_files)} audio files.")
-
-    def _extract_time_info(self, info_file_path : str):
-        time_info = None
-        try:
-            with open(info_file_path, "r") as info_if:
-                info_data = info_if.readlines()
-                time_info = float(info_data[0].split(" ")[-1])
-        except Exception as e:
-            print(traceback.format_exc())
-        finally:
-            return time_info
-
     def _crop_audio(self, audio_path : str):
 
-        car_label = audio_path.split('/')[1]
-        filename = audio_path.split('/')[-1]
-
-        if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[1]}"):
-            os.makedirs(f"formatted_data/formatted_{car_label}")
-
-        input_audiofile = siw.read(audio_path)
-        sampling_rate, audio = input_audiofile[0], input_audiofile[1]
-        file_time_info = int(self._extract_time_info(info_file_path = f"{audio_path.split('.')[0]}.txt"))
-        
-        # fixing the audio length to standard size with just one channel
-        audio = audio[:self.standard_audio_limit, :1]
+        car_label, filename, sampling_rate, audio, file_time_info = self._retrieve_audio_informations(audio_path=audio_path)
 
         if self.crop_time != -1:
             formatted_audio = audio[file_time_info*sampling_rate-sampling_rate*self.crop_time:file_time_info*sampling_rate+sampling_rate*self.crop_time, :]
@@ -164,35 +168,18 @@ class DatasetFormatter():
 
     def _window_audio(self, audio_path : str):
 
-        car_label = audio_path.split('/')[1]
-        filename = audio_path.split('/')[-1]
-
-        if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[1]}"):
-            os.makedirs(f"formatted_data/formatted_{car_label}")
-
-        input_audiofile = siw.read(audio_path)
-        sampling_rate, audio = input_audiofile[0], input_audiofile[1]
+        car_label, filename, sampling_rate, audio, _ = self._retrieve_audio_informations(audio_path=audio_path)
 
         wl = self.window_length*sampling_rate
         overlap = self.overlap_size*sampling_rate
 
-        formatted_audio = self._create_audio_views(audio_data=audio[:self.standard_audio_limit, :1], window_size=wl, overlap=overlap)
+        formatted_audio = self._create_audio_views(audio_data=audio, window_size=wl, overlap=overlap)
 
         siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=formatted_audio)
     
     def _crop_and_window_audio(self, audio_path : str):
 
-        car_label = audio_path.split('/')[1]
-        filename = audio_path.split('/')[-1]
-
-        if not os.path.exists(f"formatted_data/formatted_{audio_path.split('/')[1]}"):
-            os.makedirs(f"formatted_data/formatted_{car_label}")
-
-        input_audiofile = siw.read(audio_path)
-        sampling_rate, audio = input_audiofile[0], input_audiofile[1]
-        file_time_info = int(self._extract_time_info(info_file_path = f"{audio_path.split('.')[0]}.txt"))
-
-        audio = audio[:self.standard_audio_limit, :1]
+        car_label, filename, sampling_rate, audio, file_time_info = self._retrieve_audio_informations(audio_path=audio_path)
 
         if self.crop_time != -1:
             formatted_audio = audio[file_time_info*sampling_rate-sampling_rate*self.crop_time:file_time_info*sampling_rate+sampling_rate*self.crop_time, :]
@@ -202,7 +189,7 @@ class DatasetFormatter():
         wl = self.window_length*sampling_rate
         overlap = self.overlap_size*sampling_rate
         
-        formatted_audio = self._create_audio_views(audio_data=audio[:, :], window_size=wl, overlap=overlap)
+        formatted_audio = self._create_audio_views(audio_data=audio, window_size=wl, overlap=overlap)
         
         siw.write(filename=f"formatted_data/formatted_{car_label}/{filename}", rate=sampling_rate, data=formatted_audio)
 
@@ -221,7 +208,7 @@ class DatasetFormatter():
                 elif strategy == "CropAndWindow":
                     self._crop_and_window_audio(audio_path = audio_path)
                 else:
-                    print("Please select one among 'crop', 'window' and 'CropAndWindow' ")
+                    print("Wrong strategy. Please select one among 'crop', 'window', 'CropAndWindow' ")
             except Exception as e:
                 print(f"Problems reading audio: {audio_path}, skipping it.")
                 print(traceback.format_exc())
