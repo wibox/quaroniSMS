@@ -110,19 +110,19 @@ def get_model_statistics(history):
 
     return training_loss, training_accuracy, val_loss, val_accuracy
 
-def convert_zip_save_model(model_for_pruning, idx):
+def convert_zip_save_model(model_for_pruning, idx, network_type):
 
     model_for_export = tfmot.sparsity.keras.strip_pruning(model_for_pruning)
 
     print("Saving model to ./saved_models/")
-    saved_model_dir = f'./saved_models/{idx}'
+    saved_model_dir = f'./saved_models/{network_type}_{idx}'
     if not os.path.exists(saved_model_dir):
         os.makedirs(saved_model_dir)
     model_for_export.save(saved_model_dir)
 
     # model conversion to tf-lite format
     print("Converting model to TF-Lite format...")
-    MODEL_NAME = idx
+    MODEL_NAME = f"{network_type}_{idx}"
     ZIPPED_MODEL_NAME = MODEL_NAME
     converter = tf.lite.TFLiteConverter.from_saved_model(f'./saved_models/{MODEL_NAME}')
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS, tf.lite.OpsSet.SELECT_TF_OPS]
