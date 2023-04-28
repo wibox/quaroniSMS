@@ -68,6 +68,50 @@ def get_cnn(SHAPE, alpha, num_hidden_layers):
     
     return model
 
+def get_lstm():
+
+    model = tf.keras.Sequential()
+
+    model.add(tf.keras.Input(shape=(32,32)))
+
+    # model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=False)))
+
+    model.add(tf.keras.layers.LSTM(128, return_sequences=False))
+
+    model.add(tf.keras.layers.Dense(128, activation=None))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.ReLU())
+
+    model.add(tf.keras.layers.Dense(64, activation=None))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.ReLU())
+
+    model.add(tf.keras.layers.Dense(3, activation=None))
+    model.add(tf.keras.layers.Softmax())
+
+    return model
+
+def get_blstm():
+    model = tf.keras.Sequential()
+
+    model.add(tf.keras.Input(shape=(32,32)))
+
+    model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(128, return_sequences=False)))
+
+
+    model.add(tf.keras.layers.Dense(128, activation=None))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.ReLU())
+
+    model.add(tf.keras.layers.Dense(64, activation=None))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.ReLU())
+
+    model.add(tf.keras.layers.Dense(3, activation=None))
+    model.add(tf.keras.layers.Softmax())
+
+    return model
+
 def compile_pruning_model(model, epoch, dim, i_lr, e_lr):
     prune_low_magnitude = tfmot.sparsity.keras.prune_low_magnitude
 
@@ -102,6 +146,24 @@ def compile_pruning_model(model, epoch, dim, i_lr, e_lr):
 
     return model_for_pruning, callbacks
 
+def compile_model(model, epoch, dim, i_lr, e_lr):
+
+    loss = tf.losses.SparseCategoricalCrossentropy(from_logits=False)
+
+    initial_learning_rate = i_lr
+    end_learning_rate = e_lr
+
+    linear_decay = tf.keras.optimizers.schedules.PolynomialDecay(
+        initial_learning_rate=initial_learning_rate,
+        end_learning_rate=end_learning_rate,
+        decay_steps=dim * epoch,
+    )
+    optimizer = tf.optimizers.Adam(learning_rate=linear_decay)
+    metrics = [tf.metrics.SparseCategoricalAccuracy()]
+    model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+
+    return model
+
 def get_model_statistics(history):
     training_loss = history.history['loss'][-1]
     training_accuracy = history.history['sparse_categorical_accuracy'][-1]
@@ -110,9 +172,12 @@ def get_model_statistics(history):
 
     return training_loss, training_accuracy, val_loss, val_accuracy
 
-def convert_zip_save_model(model_for_pruning, idx, network_type):
+def convert_zip_save_model(model, idx, network_type, pruning : bool = True):
 
-    model_for_export = tfmot.sparsity.keras.strip_pruning(model_for_pruning)
+    if pruning:
+        model_for_export = tfmot.sparsity.keras.strip_pruning(model)
+    else:
+        model_for_export = model
 
     print("Saving model to ./saved_models/")
     saved_model_dir = f'./saved_models/{network_type}_{idx}'
